@@ -1,8 +1,8 @@
 # Skylark Canyon Run
 
-[![make.fun](https://make.fun/badge/best-flight-game-20261126-0057/tomli16700-spec/flight-game-01/rank)](https://make.fun/bounty/best-flight-game-20261126-0057)
-[![make.fun](https://make.fun/badge/best-flight-game-20261126-0057/tomli16700-spec/flight-game-01/reward)](https://make.fun/bounty/best-flight-game-20261126-0057)
-[![make.fun](https://make.fun/badge/best-flight-game-20261126-0057/tomli16700-spec/flight-game-01/entry)](https://make.fun/bounty/best-flight-game-20261126-0057)
+[![make.fun · best-flight-game-20261126-0057](https://make.fun/badge/best-flight-game-20261126-0057.svg)](https://make.fun/bounty/best-flight-game-20261126-0057?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
+[![rank](https://make.fun/badge/best-flight-game-20261126-0057/tomli16700-spec/flight-game-01/rank.svg)](https://make.fun/bounty/best-flight-game-20261126-0057/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
+[![reward](https://make.fun/badge/best-flight-game-20261126-0057/tomli16700-spec/flight-game-01/reward.svg)](https://make.fun/bounty/best-flight-game-20261126-0057?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
 
 A complete, original flight game for the [make.fun bounty "Make the best flight game"](https://make.fun/bounty/best-flight-game-20261126-0057). Fly the SK-7 Skylark down a canyon valley in chase view: thread glowing rings, dodge rock spires, balloons and birds, mind the fuel gauge, and — on the courier run — put her down on the island airstrip. Everything is drawn on one canvas with plain JavaScript; there are no libraries, no images, no audio files and no network requests. Sound is synthesised with WebAudio.
 
