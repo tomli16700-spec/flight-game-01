@@ -1,0 +1,56 @@
+/* Skylark Canyon Run — page chrome around the canvas. The game itself is
+   drawn on the canvas; this file only centres it and keeps the page dark. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #0a141f;
+  color: #d8f2ff;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#stage {
+  /* Fit the whole stage in the viewport so the HUD is never clipped. */
+  width: min(1280px, 100vw, calc((100vh - 36px) * 16 / 9));
+  padding: 0 8px 8px;
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #1c4d7a;
+  border: 1px solid rgba(216, 242, 255, 0.25);
+  border-radius: 6px;
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#hint {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(216, 242, 255, 0.6);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  #hint {
+    font-size: 11px;
+  }
+}
