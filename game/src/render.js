@@ -138,6 +138,14 @@ export class Renderer {
     }
   }
 
+  // Deterministic hash: the same seed always gives the same value in
+  // [0, 1), so the valley looks identical on every run with no
+  // randomness anywhere in the draw path.
+  fieldHash(seed) {
+    const v = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return v - Math.floor(v);
+  }
+
   drawGround(game) {
     const ctx = this.ctx;
     // The valley floor: a trapezoid from the horizon to the bottom edge.
@@ -153,17 +161,48 @@ export class Renderer {
     ctx.closePath();
     ctx.fill();
 
-    // Field bands scrolling toward the camera, alternating crop colours.
-    const bandMetres = 90;
-    const firstBand = Math.floor(game.travelled / bandMetres);
+    // Field patchwork scrolling toward the camera. Each 90 m band draws
+    // three staggered parcels in different crop tones, picked by band
+    // index, so the floor reads as irregular farmland and scrub instead
+    // of one repeating stripe. Near bands get scrub speckles.
+    const fieldTones = ['#7fae62', '#6d9c52', '#c2a55e', '#a8b060', '#8a7a4a', '#5d8f4c'];
+    const bandLen = 90;
+    const firstBand = Math.floor(game.travelled / bandLen);
     for (let i = 0; i < 14; i++) {
-      const bandZ = (firstBand + i) * bandMetres - game.travelled;
+      const band = firstBand + i;
+      const bandZ = band * bandLen - game.travelled;
       if (bandZ < 0 || bandZ > VIEW_DISTANCE) continue;
       const top = this.project(0, 0, bandZ);
-      const bottom = this.project(0, 0, Math.max(0, bandZ - bandMetres));
-      ctx.fillStyle = (firstBand + i) % 2 === 0 ? Palette.groundLight : Palette.fieldTan;
-      ctx.globalAlpha = 0.55;
-      ctx.fillRect(0, top.y, VIEW_WIDTH, Math.max(1, bottom.y - top.y));
+      const bottom = this.project(0, 0, Math.max(0, bandZ - bandLen));
+      const bandH = Math.max(1, bottom.y - top.y);
+      // Two parcel edges, staggered per band so no two bands line up.
+      const edgeA = 0.26 + this.fieldHash(band * 5 + 1) * 0.24;
+      const edgeB = 0.56 + this.fieldHash(band * 5 + 2) * 0.2;
+      const toneBase = Math.floor(this.fieldHash(band * 9 + 4) * fieldTones.length);
+      const parcels = [
+        [0, edgeA, fieldTones[toneBase % fieldTones.length]],
+        [edgeA, edgeB, fieldTones[(toneBase + 2) % fieldTones.length]],
+        [edgeB, 1, fieldTones[(toneBase + 4) % fieldTones.length]],
+      ];
+      for (const [x0, x1, tone] of parcels) {
+        ctx.fillStyle = tone;
+        ctx.globalAlpha = 0.5;
+        ctx.fillRect(VIEW_WIDTH * x0, top.y, VIEW_WIDTH * (x1 - x0), bandH);
+      }
+      // Scrub speckles on near bands only — far bands are too small.
+      if (bandZ < 600) {
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle = '#4a5c33';
+        const speckles = 6 + Math.floor(this.fieldHash(band * 13) * 6);
+        for (let s = 0; s < speckles; s++) {
+          const sx = this.fieldHash(band * 37 + s * 7) * VIEW_WIDTH;
+          const sy = top.y + this.fieldHash(band * 19 + s * 3) * bandH;
+          const sr = 2 + this.fieldHash(band * 29 + s) * 3.5;
+          ctx.beginPath();
+          ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
       ctx.globalAlpha = 1;
     }
 
@@ -189,12 +228,38 @@ export class Renderer {
     }
     ctx.stroke();
 
+    // Contact shadow where each wall meets the floor: a dark wedge hugging
+    // the wall's inner edge and fading toward the centre, so the wall reads
+    // as solid rock standing on the ground rather than a flat backdrop.
+    for (const side of [-1, 1]) {
+      const outer = [];
+      const inner = [];
+      for (let z = 0; z <= VIEW_DISTANCE; z += 120) {
+        outer.push(this.project(side * 0.92, 0, z));
+        inner.push(this.project(side * 0.45, 0, z));
+      }
+      const fade = ctx.createLinearGradient(
+        side < 0 ? 0 : VIEW_WIDTH, 0,
+        side < 0 ? VIEW_WIDTH * 0.42 : VIEW_WIDTH * 0.58, 0,
+      );
+      fade.addColorStop(0, 'rgba(20, 12, 6, 0.34)');
+      fade.addColorStop(1, 'rgba(20, 12, 6, 0)');
+      ctx.fillStyle = fade;
+      ctx.beginPath();
+      ctx.moveTo(outer[0].x, outer[0].y);
+      for (const p of outer) ctx.lineTo(p.x, p.y);
+      for (let i = inner.length - 1; i >= 0; i--) ctx.lineTo(inner[i].x, inner[i].y);
+      ctx.closePath();
+      ctx.fill();
+    }
+
     // Canyon walls close in on both sides as ridges scroll past.
     for (const side of [-1, 1]) {
-      ctx.fillStyle = side < 0 ? Palette.canyonLeft : Palette.canyonRight;
-      ctx.beginPath();
+      const sunlit = side < 0 ? '#a4714a' : '#96684a';
+      const shadowed = side < 0 ? '#5e3d28' : '#54371f';
       const edgeX = side < 0 ? 0 : VIEW_WIDTH;
       const innerX = side < 0 ? VIEW_WIDTH * 0.16 : VIEW_WIDTH * 0.84;
+      ctx.beginPath();
       ctx.moveTo(edgeX, HORIZON_Y - 30);
       ctx.lineTo(innerX, HORIZON_Y + 10);
       for (let z = 0; z <= VIEW_DISTANCE; z += 120) {
@@ -204,19 +269,72 @@ export class Renderer {
       }
       ctx.lineTo(edgeX, VIEW_HEIGHT);
       ctx.closePath();
+      // Sunlit rock at the top fading to shadow at the base.
+      const rockGrad = ctx.createLinearGradient(0, HORIZON_Y - 30, 0, VIEW_HEIGHT);
+      rockGrad.addColorStop(0, sunlit);
+      rockGrad.addColorStop(0.55, side < 0 ? Palette.canyonLeft : Palette.canyonRight);
+      rockGrad.addColorStop(1, shadowed);
+      ctx.fillStyle = rockGrad;
       ctx.fill();
-      // Rock strata lines on the wall face.
-      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-      ctx.lineWidth = 3;
-      for (let k = 0; k < 4; k++) {
-        ctx.beginPath();
+
+      // Layered strata: filled bands between the wall's perspective lines,
+      // in alternating warm rock tones, so the face reads as layered rock
+      // instead of one flat brown slab.
+      const rockTones = ['#9a6a45', '#7d5238', '#a87a52', '#6b4530', '#8f6040', '#744c33'];
+      const strata = [];
+      for (let k = 0; k < 7; k++) {
+        const linePts = [];
         for (let z = 0; z <= VIEW_DISTANCE; z += 120) {
-          const p = this.project(side * (0.86 - k * 0.02), 0, z);
-          if (z === 0) ctx.moveTo(p.x, p.y);
-          else ctx.lineTo(p.x, p.y);
+          linePts.push(this.project(side * (0.86 - k * 0.02), 0, z));
+        }
+        strata.push(linePts);
+      }
+      for (let k = 0; k < 6; k++) {
+        ctx.fillStyle = rockTones[(k + (side < 0 ? 0 : 3)) % rockTones.length];
+        ctx.globalAlpha = 0.42;
+        ctx.beginPath();
+        ctx.moveTo(strata[k][0].x, strata[k][0].y);
+        for (const p of strata[k]) ctx.lineTo(p.x, p.y);
+        for (let i = strata[k + 1].length - 1; i >= 0; i--) {
+          ctx.lineTo(strata[k + 1][i].x, strata[k + 1][i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // Thin dark seams between the strata.
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+      ctx.lineWidth = 2;
+      for (const linePts of strata) {
+        ctx.beginPath();
+        for (let i = 0; i < linePts.length; i++) {
+          if (i === 0) ctx.moveTo(linePts[i].x, linePts[i].y);
+          else ctx.lineTo(linePts[i].x, linePts[i].y);
         }
         ctx.stroke();
       }
+      // Cracks running down the wall face, placed deterministically per side.
+      ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+      ctx.lineWidth = 2;
+      for (let c = 0; c < 7; c++) {
+        const crackZ = 120 + this.fieldHash(side * 91 + c * 13) * 900;
+        const crackX = 0.55 + this.fieldHash(side * 57 + c * 29) * 0.35;
+        ctx.beginPath();
+        for (let z = crackZ; z <= Math.min(VIEW_DISTANCE, crackZ + 420); z += 60) {
+          const sway = Math.sin(z * 0.02 + c * 2.1) * 8;
+          const p = this.project(side * crackX, 0, z);
+          if (z === crackZ) ctx.moveTo(p.x + sway, p.y);
+          else ctx.lineTo(p.x + sway, p.y);
+        }
+        ctx.stroke();
+      }
+      // Sunlit rim along the wall's top edge.
+      ctx.strokeStyle = 'rgba(255, 225, 180, 0.5)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(edgeX, HORIZON_Y - 30);
+      ctx.lineTo(innerX, HORIZON_Y + 10);
+      ctx.stroke();
     }
   }
 
